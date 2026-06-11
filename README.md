@@ -1,6 +1,10 @@
 # P4 — Delhivery Graph ETA Optimization
 
-Solution to "Optimizing Delivery ETAs with Graph-Based Network Intelligence" (Summer Projects '26, C&A Club IIT Guwahati). Built 2026-06-11. Grader-facing deliverables: `technical-report.pdf` (4 pages, method + findings + exhibits), `network-ops-memo.pdf` (2 pages, for the ops leader), and the live dashboard:
+Solution to "Optimizing Delivery ETAs with Graph-Based Network Intelligence" (Summer Projects '26, C&A Club IIT Guwahati). Built 2026-06-11.
+
+**Live dashboard:** https://delhivery-network-eta.streamlit.app
+
+Grader-facing deliverables: `technical-report.pdf` (4 pages, method + findings + exhibits), `network-ops-memo.pdf` (2 pages, for the ops leader), and the dashboard (run locally with):
 
 ```
 streamlit run app/network_console.py     # from this folder
