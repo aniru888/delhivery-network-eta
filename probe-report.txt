@@ -1,0 +1,251 @@
+
+==============================================================================
+A. SHAPE / DTYPES / NULLS / EXACT-DUP ROWS
+==============================================================================
+
+shape=(144867, 24), exact duplicate rows=0
+                                  dtype  nulls  null_pct
+data                                str      0      0.00
+trip_creation_time                  str      0      0.00
+route_schedule_uuid                 str      0      0.00
+route_type                          str      0      0.00
+trip_uuid                           str      0      0.00
+source_center                       str      0      0.00
+source_name                         str    293      0.20
+destination_center                  str      0      0.00
+destination_name                    str    261      0.18
+od_start_time                       str      0      0.00
+od_end_time                         str      0      0.00
+start_scan_to_end_scan          float64      0      0.00
+is_cutoff                          bool      0      0.00
+cutoff_factor                     int64      0      0.00
+cutoff_timestamp                    str      0      0.00
+actual_distance_to_destination  float64      0      0.00
+actual_time                     float64      0      0.00
+osrm_time                       float64      0      0.00
+osrm_distance                   float64      0      0.00
+factor                          float64      0      0.00
+segment_actual_time             float64      0      0.00
+segment_osrm_time               float64      0      0.00
+segment_osrm_distance           float64      0      0.00
+segment_factor                  float64      0      0.00
+
+==============================================================================
+B. ROW HIERARCHY: rows -> OD legs -> trips
+==============================================================================
+
+B1. rows=144867, distinct trip_uuid=14817, distinct (trip,source,dest) legs=26368
+rows per trip:      count    14817.00 | mean         9.78 | std         13.60 | min          1.00 | 25%          3.00 | 50%          5.00 | 75%         10.00 | max        101.00
+legs per trip:      count    14817.00 | mean         1.78 | std          1.20 | min          1.00 | 25%          1.00 | 50%          1.00 | 75%          2.00 | max          8.00
+rows per leg:       count    26368.00 | mean         5.49 | std          9.29 | min          1.00 | 25%          2.00 | 50%          3.00 | 75%          5.00 | max         81.00
+legs-per-trip value counts (top 12):
+    1    8961
+    2    2716
+    3    1469
+    4    1027
+    5     469
+    6     113
+    7      59
+    8       3
+
+B2. constancy within trip / within leg:
+  trips where route_type varies within trip: 0
+  trips where route_schedule_uuid varies within trip: 0
+  trips where trip_creation_time varies within trip: 0
+  trips where data varies within trip: 0
+  legs where od_start_time varies within leg: 1
+  legs where od_end_time varies within leg: 1
+  legs where start_scan_to_end_scan varies within leg: 1
+
+B3. cumulative-vs-incremental test (the load-bearing structural fact):
+  legs where actual_time is non-decreasing in file order: 26347 of 26368 (99.92%)
+  (last actual_time - sum segment_actual_time) per leg: count    26368.00 | mean         1.83 | std          4.03 | min       -151.00 | 1%           0.00 | 50%          1.00 | 99%         23.00 | max         39.00
+  legs where |gap| <= 2 min: 22244 (84.36%)
+  osrm_time vs sum segment_osrm_time: |gap|<=2 in 63.63% of legs; median gap 0.00
+  osrm_distance vs sum segment_osrm_distance: |gap|<=2 in 62.91% of legs; median gap -0.00
+
+B4. first row of each leg: does cumulative == segment (i.e., starts fresh)?
+  legs where first-row actual_time == segment_actual_time: 26368 (100.00%)
+
+B5. does the cumulative counter reset per LEG or run across the whole TRIP?
+  leg transitions where next leg's first cumulative >= prev leg's last: 1947
+  leg transitions where it resets lower (fresh counter): 9604
+
+B6. actual_distance_to_destination behavior within leg:
+  legs monotonic decreasing: 2225 (8.4%), monotonic increasing: 25254 (95.8%) of 26368
+
+B7. cutoff fields:
+  is_cutoff value counts: is_cutoff | True     118749 | False     26118
+  cutoff_factor describe: count    144867.00 | mean        232.93 | std         344.76 | min           9.00 | 25%          22.00 | 50%          66.00 | 75%         286.00 | max        1927.00
+  cutoff_timestamp nulls: 0
+
+==============================================================================
+C. GRAPH YIELD: nodes, corridors, repeat density (Rule-11 units)
+==============================================================================
+
+C1. distinct source centers: 1508, destination centers: 1481, union (graph nodes): 1657
+  source-only nodes: 176, destination-only nodes: 149
+
+C2. distinct directed corridors: 2783
+  legs (observations) per corridor: count    2783.00 | mean        9.47 | std        11.25 | min         1.00 | 25%         2.00 | 50%         7.00 | 75%        14.00 | 90%        19.00 | 99%        57.00 | max       151.00
+  corridors with >= 1 leg observations: 2783 (100.0%)  -> covering 26368 legs (100.0% of legs)
+  corridors with >= 2 leg observations: 2211 (79.4%)  -> covering 25796 legs (97.8% of legs)
+  corridors with >= 5 leg observations: 1631 (58.6%)  -> covering 24189 legs (91.7% of legs)
+  corridors with >= 10 leg observations: 1130 (40.6%)  -> covering 20739 legs (78.7% of legs)
+  corridors with >= 20 leg observations: 268 (9.6%)  -> covering 8796 legs (33.4% of legs)
+
+C3. corridor repeat density BY ROUTE TYPE:
+  Carting: legs=12429, corridors=1071, median obs/corridor=8, >=5 obs: 60.4%
+  FTL: legs=13939, corridors=1735, median obs/corridor=6, >=5 obs: 56.8%
+
+C4. center code <-> name consistency:
+  source codes with >1 name: 0; destination codes with >1 name: 0
+  source_name nulls: 293 rows, destination_name nulls: 261 rows
+
+C5. state extraction from names (for geo aggregation):
+  source rows with parseable (State) suffix: 144574 of 144574
+  top 12 states: 0 | Haryana           27499 | Maharashtra       21401 | Karnataka         19578 | Tamil Nadu         7494 | Gujarat            7202 | Uttar Pradesh      7137 | Telangana          6496 | West Bengal        5963 | Andhra Pradesh     5539 | Rajasthan          5267 | Punjab             4704 | Delhi              4398
+
+==============================================================================
+D. TARGET INTEGRITY: actual vs OSRM, factor fields
+==============================================================================
+
+D1. leg-level (last cumulative row per leg) actual_time vs osrm_time:
+  actual_time:  count    26368.0 | mean       200.7 | std        384.9 | min          9.0 | 1%          19.0 | 25%         51.0 | 50%         84.0 | 75%        168.0 | 99%       2245.6 | max       4532.0
+  osrm_time:    count    26368.0 | mean        90.7 | std        185.1 | min          6.0 | 1%          10.0 | 25%         25.0 | 50%         39.0 | 75%         72.0 | 99%       1048.0 | max       1686.0
+  legs with osrm_time <= 0: 0, actual_time <= 0: 0, nulls: osrm=0, actual=0
+  delay ratio actual/osrm per leg: count    26368.000 | mean         2.558 | std          2.660 | min          0.388 | 5%           1.195 | 25%          1.653 | 50%          2.000 | 75%          2.600 | 95%          5.249 | 99%         12.081 | max         77.387
+  legs with actual > osrm: 98.3%; > 1.2 (brief's chronic threshold): 94.8%; underestimate by >2x: 49.7%
+
+D2. is 'factor' == actual_time/osrm_time row-wise?
+  rows where |factor - actual/osrm| < 0.01: 100.00% (nulls/inf excluded: 0)
+  rows where |segment_factor - seg_actual/seg_osrm| < 0.01: 98.38% (nan: 1717)
+
+D3. start_scan_to_end_scan vs od_end - od_start:
+  (start_scan_to_end_scan - od duration in min): count    144867.00 | mean         -0.50 | std           0.29 | min          -1.00 | 1%           -0.99 | 50%          -0.50 | 99%          -0.01 | max          -0.00
+  od_end < od_start rows: 0; unparseable timestamps: start=0, end=0
+
+D4. leg duration vs leg-level cumulative actual_time:
+  (od duration - last actual_time) per leg: count    26368.0 | mean        98.1 | std        136.2 | min          0.0 | 1%           1.7 | 50%         49.6 | 99%        645.5 | max       5357.6
+
+D5. segment-level zero/negative anomalies:
+  segment_actual_time: negatives=21, zeros=1952, nulls=0
+  segment_osrm_time: negatives=0, zeros=2347, nulls=0
+  segment_osrm_distance: negatives=0, zeros=1536, nulls=0
+  actual_time: negatives=0, zeros=0, nulls=0
+  osrm_time: negatives=0, zeros=0, nulls=0
+  osrm_distance: negatives=0, zeros=0, nulls=0
+
+==============================================================================
+E. TIME COVERAGE / ROUTE TYPE / TRAIN-TEST SPLIT
+==============================================================================
+
+E1. trip_creation_time range: 2018-09-12 00:00:16.535741 .. 2018-10-03 23:59:42.701692 (unparseable: 0)
+  trips per calendar day (describe): count     22.0 | mean     673.5 | std       73.8 | min      508.0 | 25%      619.8 | 50%      680.5 | 75%      735.5 | max      791.0
+  trips by hour of day:
+    trip_creation_time
+    0      994
+    1      750
+    2      702
+    3      652
+    4      636
+    5      509
+    6      611
+    7      473
+    8      346
+    9      324
+    10     262
+    11     267
+    12     271
+    13     329
+    14     379
+    15     469
+    16     526
+    17     595
+    18     698
+    19     837
+    20    1082
+    21     873
+    22    1125
+    23    1107
+
+E2. route_type at TRIP level:
+    route_type
+    Carting    8908
+    FTL        5909
+
+E3. data (train/test) split:
+  rows:  data | training    104858 | test         40009
+  trips: data | training    10654 | test         4163
+  trips appearing in BOTH splits: 0
+  training trip dates: 2018-09-12 00:00:16.535741 .. 2018-09-26 23:54:27.945614
+  test     trip dates: 2018-09-27 00:02:18.970980 .. 2018-10-03 23:59:42.701692  (temporal split? overlap matters for leakage)
+  test corridors never seen in training: 275 of 1805 (15.2%)  [cold-start exposure]
+
+==============================================================================
+F. FOLLOW-UP CHECKS (verify inferences from A-E)
+==============================================================================
+
+F1. the 21 negative segment_actual_time rows:
+                     trip_uuid source_center destination_center  actual_time  segment_actual_time  segment_osrm_time
+1805   trip-153694949570782725  IND000000ACT       IND000000ACB         12.0                -26.0               14.0
+3761   trip-153775750038541173  IND821115AAB       IND209304AAA         12.0                -21.0               30.0
+4040   trip-153840738832805377  IND000000ACB       IND110030AAD         29.0                 -5.0               11.0
+6329   trip-153777153016792753  IND160002AAC       IND140603AAA         75.0                 -1.0                0.0
+39825  trip-153774201053841850  IND562132AAA       IND302014AAA       1040.0                -58.0               22.0
+40942  trip-153775374039614677  IND131028AAB       IND000000ACB        152.0               -211.0                9.0
+56464  trip-153776193579607660  IND000000ACB       IND834002AAB         60.0                -12.0               33.0
+58697  trip-153781811361072511  IND000000ACB       IND501359AAE       2070.0                -36.0               19.0
+68205  trip-153860570045461434  IND000000ACB       IND834002AAB        608.0                 -1.0               46.0
+70479  trip-153691889969297161  IND328001AAA       IND474003AAA         28.0                -42.0               63.0
+  distinct legs affected: 21
+
+F2. cutoff_factor semantics — is it the cumulative actual_time at the cutoff row?
+  rows where |cutoff_factor - actual_time| < 1: 0.18%
+  rows where cutoff_factor == round(actual_time): 0.18%
+  by is_cutoff:
+    is_cutoff=False: n=26118, |cutoff_factor-actual_time|<1 in 0.05%
+    is_cutoff=True: n=118749, |cutoff_factor-actual_time|<1 in 0.21%
+
+F3. actual_distance_to_destination: cumulative distance traveled, not remaining?
+  last actual_distance_to_destination / last osrm_distance per leg: count    26368.000 | mean         0.796 | std          0.114 | min          0.119 | 5%           0.583 | 50%          0.814 | 95%          0.948 | max          0.999
+  first-row value describe: count    26368.0 | mean        18.0 | std         20.4 | min          9.0 | 50%         22.0 | 95%         25.1 | max       1722.0
+
+F4. the 1 leg where od_start/od_end varies within leg:
+                     trip_uuid source_center destination_center               od_start_time                 od_end_time  actual_time  segment_actual_time
+38246  trip-153784572117438961  IND370001AAA       IND370110AAA  2018-09-25 06:07:34.010850  2018-09-25 16:48:34.899468         30.0                 30.0
+38247  trip-153784572117438961  IND370001AAA       IND370110AAA  2018-09-25 06:07:34.010850  2018-09-25 16:48:34.899468        151.0                121.0
+38253  trip-153784572117438961  IND370001AAA       IND370110AAA  2018-09-26 13:29:52.138158  2018-09-26 16:53:38.319719         29.0                 29.0
+38254  trip-153784572117438961  IND370001AAA       IND370110AAA  2018-09-26 13:29:52.138158  2018-09-26 16:53:38.319719        181.0                152.0
+
+F5. trips revisiting the same OD pair (leg key collisions across a trip)?
+  legs with non-monotonic actual_time: 21 (same 21 expected from B3)
+                    trip_uuid source_center destination_center  actual_time  segment_actual_time               od_start_time
+1802  trip-153694949570782725  IND000000ACT       IND000000ACB         16.0                 16.0  2018-09-14 18:24:50.326548
+1803  trip-153694949570782725  IND000000ACT       IND000000ACB         28.0                 11.0  2018-09-14 18:24:50.326548
+1804  trip-153694949570782725  IND000000ACT       IND000000ACB         38.0                 10.0  2018-09-14 18:24:50.326548
+1805  trip-153694949570782725  IND000000ACT       IND000000ACB         12.0                -26.0  2018-09-14 18:24:50.326548
+1806  trip-153694949570782725  IND000000ACT       IND000000ACB         48.0                 35.0  2018-09-14 18:24:50.326548
+
+F6. hub concentration — share of legs touching top-20 centers (graph skew):
+    IND000000ACB    1991
+    IND562132AAA    1433
+    IND421302AAG    1404
+    IND560099AAB     820
+    IND160002AAC     801
+    IND501359AAE     734
+    IND411033AAA     733
+    IND560300AAA     609
+    IND131028AAB     574
+    IND600056AAB     541
+    IND382430AAB     537
+    IND400072AAB     534
+    IND712311AAA     481
+    IND110037AAM     445
+    IND209304AAA     392
+    IND842001AAA     336
+    IND121004AAB     314
+    IND401104AAA     268
+    IND462022AAA     266
+    IND000000ACA     262
+  top-20 centers account for 25.6% of leg endpoints

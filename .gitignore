@@ -1,0 +1,3 @@
+data/delivery_data.csv
+*.html
+__pycache__/
